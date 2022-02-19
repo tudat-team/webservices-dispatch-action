@@ -5,7 +5,6 @@ inputs:
   github_token:
     description: 'github token'
     required: true
-    default: ${{ secrets.GITHUB_TOKEN }}
 runs:
   using: "docker"
   image: "Dockerfile"
