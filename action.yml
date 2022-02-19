@@ -1,0 +1,14 @@
+name: 'webservices-dispatch-action'
+description: 'tudat-team webservices dispatch GitHub Action'
+author: tudat-team core (@tudat-team/core)
+inputs:
+  github_token:
+    description: 'github token'
+    required: true
+    default: ${{ secrets.GITHUB_TOKEN }}
+  dispatch:
+    description: 'dispatch json'
+    required: true
+runs:
+  using: "docker"
+  image: "Dockerfile"
