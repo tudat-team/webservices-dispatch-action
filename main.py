@@ -1,13 +1,13 @@
 import os
-import requests
+import json
 
 
 def main():
-    my_input = os.environ["INPUT_MYINPUT"]
+    with open(os.environ["GITHUB_EVENT_PATH"], 'r') as fp:
+        event_data = json.load(fp)
 
-    my_output = f"Hello {my_input}"
-
-    print(f"::set-output name=myOutput::{my_output}")
+    print("Event data")
+    print(event_data)
 
 
 if __name__ == "__main__":

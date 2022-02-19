@@ -6,9 +6,6 @@ inputs:
     description: 'github token'
     required: true
     default: ${{ secrets.GITHUB_TOKEN }}
-  dispatch:
-    description: 'dispatch json'
-    required: true
 runs:
   using: "docker"
   image: "Dockerfile"
