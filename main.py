@@ -71,7 +71,7 @@ def main():
             os.environ['GH_TOKEN'])
 
         previous_metadata = feedstock_repo.get_contents(
-            "recipe/meta.yaml", ref=branch).decode("ascii")
+            "recipe/meta.yaml", ref=branch).decoded_content.decode("ascii")
         # use regex to get last version {% set version = "@VERSION@" %}
         previous_version = re.search(
             r'{%\s*set\s*version\s*=\s*"([^"]*)"\s*%}',
