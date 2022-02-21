@@ -126,7 +126,7 @@ def main():
         oid = cloned_repo.create_commit(pygit2_ref, author, commiter,
                                         f"BOT: Automated feedstock update for sha:{client_payload['sha']} on {client_payload['repository']}",
                                         tree,
-                                        [cloned_repo.head.get_object().hex])
+                                        [cloned_repo.head.target])
 
         auth_method = 'x-access-token'
         credentials = pygit2.UserPass(auth_method, os.environ['GH_TOKEN'])
