@@ -8,6 +8,9 @@ import re
 
 LOGGER = logging.getLogger(__name__)
 
+# set logging level to info
+LOGGER.setLevel(logging.INFO)
+
 
 def clone_repo(clone_url, clone_path, branch, auth_token):
     # Use pygit2 to clone the repo to disk
