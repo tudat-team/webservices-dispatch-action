@@ -35,13 +35,14 @@ def main():
     LOGGER.info('github event data:\n%s', pprint.pformat(event_data))
 
     if event_name == 'repository_dispatch':
+        client_payload = event_data['client_payload']
         LOGGER.info('repository_dispatch event')
 
         gh = Github(os.environ['GH_TOKEN'])
 
         # get repositories of project and respective feedstock
-        project_repo = gh.get_repo(event_data['repository'])
-        feedstock_repo = gh.get_repo(event_data['repository'] + "-feedstock")
+        project_repo = gh.get_repo(client_payload['repository'])
+        feedstock_repo = gh.get_repo(client_payload['repository'] + "-feedstock")
 
         # check if repo exists
         if feedstock_repo is None:
@@ -49,18 +50,18 @@ def main():
                 'repository_dispatch event: feedstock repository not found')
             return
 
-        if event_data["ref_type"] != "branch":
+        if client_payload["ref_type"] != "branch":
             LOGGER.info(
                 'repository_dispatch event: only branch ref type supported'
             )
             return
 
-        branch = event_data["ref_name"]
+        branch = client_payload["ref_name"]
         contents = project_repo.get_contents("version", ref=branch)
         version = contents.decoded_content.decode("ascii")
 
         # remap branch to subchannel
-        subchannel = remap(event_data["ref_name"])
+        subchannel = remap(client_payload["ref_name"])
 
         # clone feedstock and checkout template branch
         cloned_repo = clone_repo(
@@ -90,10 +91,10 @@ def main():
 
         vars = {
             "SUBCHANNEL": subchannel,
-            "REPO_NAME": event_data["repository"],
+            "REPO_NAME": client_payload["repository"],
             "VERSION": version,
             "BUILD": new_build,
-            "GIT_REV": event_data["sha"],
+            "GIT_REV": client_payload["sha"],
         }
 
         # for each file, replace @VAR@ with values from dictionary
@@ -122,7 +123,7 @@ def main():
         pygit2_branch = cloned_repo.branches['origin/' + branch]
         pygit2_ref = cloned_repo.lookup_reference(pygit2_branch.name)
         oid = cloned_repo.create_commit(pygit2_ref, author, commiter,
-                                        f"BOT: Automated feedstock update for sha:{event_data['sha']} on {event_data['repository']}",
+                                        f"BOT: Automated feedstock update for sha:{client_payload['sha']} on {client_payload['repository']}",
                                         tree,
                                         [cloned_repo.head.get_object().hex])
 
