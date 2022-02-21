@@ -7,9 +7,10 @@ RUN apt-get update && apt-get install -y \
   python3-pip  \
   python3-dev  \
   build-essential  \
-  libssl-dev libffi-dev  \
+  libssl-dev  \
+  libffi-dev  \
   python3-setuptools \
-  && rm -rf /var/lib/apt/lists/* \
+  && rm -rf /var/lib/apt/lists/*
 
 # We are installing a dependency here directly into our app source dir
 RUN pip install --target=/app requests PyGithub pygit2 cffi
