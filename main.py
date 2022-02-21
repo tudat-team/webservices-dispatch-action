@@ -137,13 +137,13 @@ def main():
 
 
 def remap(key):
-    key = {
+    map = {
         "develop": "dev",
         "master": "main",
         "main": "main",
     }
-    if key in remap:
-        return remap[key]
+    if key in map:
+        return map[key]
     return key
 
 
