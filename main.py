@@ -106,7 +106,7 @@ def main():
 
                 for key, value in vars.items():
                     file_contents = file_contents.replace(
-                        "@" + key + "@", value)
+                        "@" + key + "@", str(value))
 
                 with open(os.path.join(root, file), 'w') as f:
                     f.write(file_contents)
