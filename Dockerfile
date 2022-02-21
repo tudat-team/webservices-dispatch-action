@@ -1,4 +1,4 @@
-FROM python:3-slim AS builder
+FROM python:3-slim
 ADD . /app
 WORKDIR /app
 
@@ -17,4 +17,4 @@ RUN pip install --target=/app requests PyGithub pygit2 cffi
 # A distroless container image with Python and some basics like SSL certificates
 # https://github.com/GoogleContainerTools/distroless
 ENV PYTHONPATH /app
-CMD ["/app/main.py"]
+CMD ["python", "/app/main.py"]
