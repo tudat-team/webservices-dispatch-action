@@ -101,15 +101,16 @@ def main():
         for root, dirs, files in os.walk(
                 os.path.join(os.environ['GITHUB_WORKSPACE'], "feedstock")):
             for file in files:
-                with open(os.path.join(root, file), 'r') as f:
-                    file_contents = f.read()
+                if file.endswith(".yaml") or file.endswith(".yml"):
+                    with open(os.path.join(root, file), 'r') as f:
+                        file_contents = f.read()
 
-                for key, value in vars.items():
-                    file_contents = file_contents.replace(
-                        "@" + key + "@", str(value))
+                    for key, value in vars.items():
+                        file_contents = file_contents.replace(
+                            "@" + key + "@", str(value))
 
-                with open(os.path.join(root, file), 'w') as f:
-                    f.write(file_contents)
+                    with open(os.path.join(root, file), 'w') as f:
+                        f.write(file_contents)
 
         user = "Delfi-C3"
         email = "Delfi-C3@users.noreply.github.com"
