@@ -123,7 +123,7 @@ def main():
         tree = cloned_repo.index.write_tree()
         pygit2_branch = cloned_repo.branches['origin/' + branch]
         pygit2_ref = cloned_repo.lookup_reference(pygit2_branch.name)
-        oid = cloned_repo.create_commit(pygit2_ref, author, commiter,
+        oid = cloned_repo.create_commit(f'refs/head/{branch}', author, commiter,
                                         f"BOT: Automated feedstock update for sha:{client_payload['sha']} on {client_payload['repository']}",
                                         tree,
                                         [cloned_repo.head.target])
@@ -134,7 +134,7 @@ def main():
             credentials=credentials
         )
         remote = cloned_repo.remotes["origin"]
-        remote.push([pygit2_ref], callbacks=callbacks)
+        remote.push([f'refs/head/{branch}'], callbacks=callbacks)
 
 
 def remap(key):
