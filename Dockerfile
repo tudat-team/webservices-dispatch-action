@@ -12,7 +12,12 @@ RUN apt-get update && apt-get install -y \
   python3-setuptools
 
 # We are installing a dependency here directly into our app source dir
-RUN pip install --target=/app requests PyGithub pygit2 cffi
+RUN pip install PyGithub \
+  pygit2 \
+  cffi \
+  bumpversion
+
+#--target=/app requests PyGithub pygit2 cffi
 
 # A distroless container image with Python and some basics like SSL certificates
 # https://github.com/GoogleContainerTools/distroless
