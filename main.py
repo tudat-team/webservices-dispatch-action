@@ -201,14 +201,14 @@ def main():
                         'repository_dispatch event: bumping dev version')
                     # we bump the n of the dev release
                     bump_command = [
-                        'dev']  # '--config-file', PROJECT_DIR + '/.bumpversion.cfg']
+                        'dev', '--tag']  # '--config-file', PROJECT_DIR + '/.bumpversion.cfg']
                 else:
                     # we just increase patch, which will automatically start
                     # a dev release at the same time
                     LOGGER.info(
                         'repository_dispatch event: bumping patch version')
                     bump_command = [
-                        'patch']  # '--config-file', PROJECT_DIR + '/.bumpversion.cfg']
+                        'patch', '--tag']  # '--config-file', PROJECT_DIR + '/.bumpversion.cfg']
             else:
                 LOGGER.info(
                     'repository_dispatch event: only branch ref type supported'
@@ -238,7 +238,8 @@ def main():
                 new_version = fp.read().rstrip("\n")
 
             new_var_vals = update_var_values(old_var_vals, new_version,
-                                             payload['sha'])
+                                             new_version)
+                                             # payload['sha'])
 
             VAR_SUBSTITUTE = [
                 # These note where/how to find the version numbers
