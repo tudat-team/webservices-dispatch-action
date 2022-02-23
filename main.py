@@ -215,6 +215,12 @@ def main():
                 )
                 return
 
+            # set credentials
+            user = "Delfi-C3"
+            email = "Delfi-C3@users.noreply.github.com"
+            subprocess.run(["git", "config", "--global", "user.name", user])
+            subprocess.run(["git", "config", "--global", "user.email", email])
+
             # get current working directory
             cwd = os.getcwd()
 
