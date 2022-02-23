@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y \
   build-essential  \
   libssl-dev  \
   libffi-dev  \
-  python3-setuptools
+  python3-setuptools \
+  git
 
 # We are installing a dependency here directly into our app source dir
 RUN pip install PyGithub \
