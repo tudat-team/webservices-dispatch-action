@@ -44,11 +44,12 @@ def main():
     if event_name == 'repository_dispatch':
 
         gh = Github(os.environ['GH_TOKEN'])
-        repo = gh.get_repo(payload['repository'])
         branch_name = payload['ref_name']
 
         s_repository = payload['repository']
         s_repository_feedstock = payload['repository'] + "-feedstock"
+        repo = gh.get_repo(s_repository)
+        feedstock_repo = gh.get_repo(s_repository_feedstock)
 
         # check if repo exists
         if not repository_exists(gh, s_repository_feedstock):
@@ -129,8 +130,15 @@ def main():
 
             LOGGER.info('cloning feedstock repository')
             feedstock_repo, _ = clone_repo(
-                repo.clone_url,
+                feedstock_repo.clone_url,
                 FEEDSTOCK_DIR,
+                branch_name,
+                os.environ['GH_TOKEN'])
+
+            LOGGER.info('cloning project repository')
+            project_repo, _ = clone_repo(
+                repo.clone_url,
+                PROJECT_DIR,
                 branch_name,
                 os.environ['GH_TOKEN'])
 
