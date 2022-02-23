@@ -44,7 +44,7 @@ def main():
     if event_name == 'repository_dispatch':
 
         gh = Github(os.environ['GH_TOKEN'])
-        repo = gh.get_repo(os.environ['GITHUB_REPOSITORY'])
+        repo = gh.get_repo(payload['repository'])
         branch_name = payload['ref_name']
 
         s_repository = payload['repository']
