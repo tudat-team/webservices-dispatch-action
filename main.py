@@ -73,7 +73,7 @@ def main():
 
                 # remove match from message
                 commit_message = message.replace(f'[{tag}]', '')
-                commit_message = "[AUTO CI] 🤖 " + commit_message
+                commit_message = "CI: " + commit_message
 
                 LOGGER.info('tag: %s', tag)
                 if not tag.lower() == 'ci':
@@ -99,7 +99,7 @@ def main():
                 LOGGER.info(
                     'since is within 24 hrs, nightly release will follow')
                 release = True
-                commit_message = "[BOT] Changes detected in project, nightly release 🌃 "
+                commit_message = "BOT: Changes detected in project, nightly release 🌃 "
             else:
                 return  # will stop main() entirely
 
@@ -158,6 +158,8 @@ def main():
                 r'{%\s*set\s*git_rev\s*=\s*"([^"]*)"\s*%}')
             VERSION_PEP440 = re.compile(
                 r'(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(\.(?P<release>[a-z]+)(?P<dev>\d+))?')
+            TARGETS_REGEX = re.compile(
+                r"-\s+\[(?P<channel>[\w,-].+)\, \s+(?P<subchannel>[\w,-]+)]")
 
             # match to pep440 and retrieve groups
             match = VERSION_PEP440.match(version)
@@ -249,6 +251,10 @@ def main():
                  new_var_vals['build']),
                 ('recipe/meta.yaml', GIT_REV_REGEX, r'{% set git_rev = "{}" %}',
                  new_var_vals['git_rev']),
+                ('recipe/conda_build_config.yaml', TARGETS_REGEX, r'- [tudat-team, {}]',
+                 remap(branch_name)),
+                ('conda-forge.yml', TARGETS_REGEX, r'- [tudat-team, {}]',
+                 remap(branch_name)),
             ]
 
             # substitute all vars accordingly
