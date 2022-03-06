@@ -249,7 +249,7 @@ def main():
                  new_var_vals['version']),
                 ('recipe/meta.yaml', BUILD_REGEX, r'{% set build = "{}" %}',
                  new_var_vals['build']),
-                ('recipe/meta.yaml', GIT_REV_REGEX, r'{% set git_rev = "{}" %}',
+                ('recipe/meta.yaml', GIT_REV_REGEX, r'{% set git_rev = "v{}" %}',
                  new_var_vals['git_rev']),
                 ('recipe/conda_build_config.yaml', TARGETS_REGEX, r'- [tudat-team, {}]',
                  remap(branch_name)),
@@ -290,8 +290,9 @@ def main():
                     repository=repo)
 
                 subprocess.run(
+                    ["git", "tag", f"v{new_var_vals['version']}"], cwd=dir)
+                subprocess.run(
                     ["git", "push", "--all", "-f", repo_auth_url, "--tags"], cwd=dir)
-
 
 def remap(key):
     map = {
