@@ -292,10 +292,10 @@ def main():
                     repository=repo)
 
                 subprocess.run(
-                    ["git", "push", "--all", "-f", repo_auth_url, "--tags"], cwd=dir)
+                    ["git", "push", "--all", "-f", repo_auth_url], cwd=dir)
 
                 subprocess.run(
-                    ["git", "push", repo_auth_url, "--tags"], cwd=dir)
+                    ["git", "push", repo_auth_url, branch_name, "--tags"], cwd=dir)
 def remap(key):
     map = {
         "develop": "dev",
