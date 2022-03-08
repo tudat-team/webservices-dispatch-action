@@ -160,6 +160,8 @@ def main():
                 r'(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(\.(?P<release>[a-z]+)(?P<dev>\d+))?')
             TARGETS_REGEX = re.compile(
                 r"-\s+\[(?P<channel>[\w,-].+)\, \s+(?P<subchannel>[\w,-]+)]")
+            TARGETS2_REGEX = re.compile(
+                r"(?<=channel_targets:\n\s\s)-\s+(?P<targets>[\s,\w,-]+)")
 
             # match to pep440 and retrieve groups
             match = VERSION_PEP440.match(version)
@@ -251,8 +253,7 @@ def main():
                  new_var_vals['build']),
                 ('recipe/meta.yaml', GIT_REV_REGEX, r'{% set git_rev = "v{}" %}',
                  new_var_vals['git_rev']),
-                ('recipe/conda_build_config.yaml',
-                 re.compile(r'-\s+(?P<target>[\w+,\-,\s]+)\n'),
+                ('recipe/conda_build_config.yaml', TARGETS2_REGEX,
                  r'- tudat-team {}',
                  remap(branch_name)),
                 ('conda-forge.yml', TARGETS_REGEX, r'- [tudat-team, {}]',
