@@ -95,7 +95,7 @@ def main():
             sha = branch.commit.raw_data['sha']
             since = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%SZ")
             # check if since is within 24 hrs
-            if since > datetime.now() - timedelta(hours=24):
+            if since > datetime.now() - timedelta(hours=22):
                 LOGGER.info(
                     'since is within 24 hrs, nightly release will follow')
                 release = True
