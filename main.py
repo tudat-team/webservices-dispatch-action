@@ -253,9 +253,9 @@ def main():
                  new_var_vals['build']),
                 ('recipe/meta.yaml', GIT_REV_REGEX, r'{% set git_rev = "v{}" %}',
                  new_var_vals['git_rev']),
-                ('recipe/conda_build_config.yaml', TARGETS2_REGEX,
-                 r'- tudat-team {}',
-                 remap(branch_name)),
+                # ('recipe/conda_build_config.yaml', TARGETS2_REGEX,
+                #  r'- tudat-team {}',
+                #  remap(branch_name)),
                 ('conda-forge.yml', TARGETS_REGEX, r'- [tudat-team, {}]',
                  remap(branch_name)),
             ]
