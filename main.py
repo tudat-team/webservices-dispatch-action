@@ -3,7 +3,6 @@ import json
 import logging
 import pprint
 from github import Github
-from github.GithubException import UnknownObjectException
 import re
 from util import *
 import bumpversion.cli
@@ -52,74 +51,27 @@ def main():
     # Get repository
     branch_name = payload["ref_name"]
     s_repository = payload["repository"]
-    s_repository_feedstock = payload["repository"] + "-feedstock"
-    project_repo = gh.get_repo(s_repository)
 
-    # Get feedstock repository
-    try:
-        feedstock_repo = gh.get_repo(s_repository_feedstock)
-    # If feedstock repo does not exist, log an error and exit
-    except UnknownObjectException:
-        LOGGER.error(
-            "repository_dispatch event: feedstock repository of '%s' not found" % s_repository)
+    project_repo, feedstock_repo, s_repository_feedstock = get_project_and_feedstock_repos(gh, s_repository)
+    if project_repo is None:
         return
 
     # If the even is a push, analyze it to search for [CI] tag
     if event_type == "push":
-        # Get commit from its sha
-        sha = payload["sha"]
-        commit = project_repo.get_commit(sha=sha)
-        message = commit.raw_data["commit"]["message"]
-
-        # Extract commit tag if there is one
-        tag = re.search(r'\[(.*?)\]', message)
-        supported_tags = ["ci", "rerender"]
-        if tag:
-            tag = tag.group(1)
-            LOGGER.info("tag: %s", tag)
-
-            if tag.lower() in supported_tags:
-                # Remove tag from message, and add it in front
-                commit_message = message.replace(f'[{tag}]', "")
-                # Clean excess spaces
-                commit_message = re.sub(r'\s+', " ", commit_message).strip()
-                # Add tag in front of commit message
-                commit_message = "%s: %s" % (tag.upper(), commit_message)
-
-                # Depending on the tag, trigger rerender only or run continuous integration
-                rerender = tag.lower() == "rerender"
-                release = tag.lower() == "ci"
-
-                # TODO: make rerender and release two functions. For rerender, have option to push immediately, or at the same time as release
-            else:
-                # Quit if the tag is not in the list of supported ones
-                LOGGER.info(
-                    "no supported tag detected (was '%s', supported are %s" % (tag, supported_tags)
-                )
-                return
-        else:
-            # Quit if there is not tag
-            LOGGER.info("no tag detected")
+        # Get possible tags in commit message, as well as new commit message for push after rerender or release
+        tags_found, commit_message = get_commit_tags(project_repo, payload["sha"])
+        rerender = tags_found["rerender"] or tags_found["ci"]
+        release = tags_found["ci"]
+        # Quit if no tags were found
+        if not rerender and not release:
             return
 
     # If the even is a nightly, rerender, check if there was changes in the last 24hrs and if so, release
     elif event_type == "nightly":
         # Trigger rerender
         rerender = True
-        # Get info of latest commit
-        branch = project_repo.get_branch(branch_name)
-        date_string = branch.commit.raw_data["commit"]["author"]["date"]
-        sha = branch.commit.raw_data["sha"]
-        last_commit_time = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%SZ")
-        
-        # Trigger release if last commit time was less than 22hrs ago
-        if last_commit_time > datetime.now() - timedelta(hours=22):
-            LOGGER.info(
-                "since is within 24 hrs, nightly release will follow")
-            release = True
-            commit_message = "BOT: Changes detected in project, nightly release 🌃"
-        else:
-            return
+        # If last commit was less than 22hrs ago, trigger release
+        release = was_last_branch_commit_recent(project_repo, branch_name, time_treshold=timedelta(hours=22))
 
     # Quit if the event is not a push nor a nightly
     else:
@@ -264,6 +216,14 @@ def main():
             # Write file    
             with open(path, "w") as f:
                 f.write(s)
+
+        # If in testing env, ask confirmation before pushing
+        if "TEST_DICT" in os.environ:
+            print("Last thing to do is to push to GitHub...")
+            go_ahead = input("Do you want to still do so (even from this test environment)? (y/[n]): ")
+            if go_ahead.lower() != "y":
+                print("Exiting...")
+                return
 
         # Push changes to GitHub
         for repo, dir in [(s_repository_feedstock, FEEDSTOCK_DIR),

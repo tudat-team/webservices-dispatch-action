@@ -1,9 +1,126 @@
 import os
 import requests
 import urllib3.util.retry
+import logging
+import re
+from datetime import datetime, timedelta
 import pygit2
 from github import Github
+from github.GithubException import UnknownObjectException
 
+
+# Create logger with logging level set to all
+LOGGER = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+def get_project_and_feedstock_repos(github_client, repo_name):
+    """
+    Get the project and feedstock repos from the repo name.
+    Parameters
+    ----------
+    github_client : github.MainClass.Github
+        The Github client.
+    repo_name : str
+        The repo name.
+    Returns
+    -------
+    project_repo : github.Repository.Repository
+        The project repository.
+    feedstock_repo : github.Repository.Repository
+        The feedstock repository.
+    feedstock_repo_name : str
+        The feedstock repository name.
+    """
+    feedstock_repo_name = repo_name + "-feedstock"
+    project_repo = github_client.get_repo(repo_name)
+
+    # Get feedstock repository
+    try:
+        feedstock_repo = github_client.get_repo(feedstock_repo_name)
+    # If feedstock repo does not exist, log an error and exit
+    except UnknownObjectException:
+        LOGGER.error(
+            "repository_dispatch event: feedstock repository of '%s' not found" % repo_name)
+        return None, None, None
+
+    return project_repo, feedstock_repo, feedstock_repo_name
+
+def get_commit_tags(repo, commit_hash, supported_tags=["ci", "rerender"]):
+    """
+    Get the tags of a commit.
+    Parameters
+    ----------
+    repo : github.Repository.Repository
+        The repository.
+    commit_hash : str
+        The commit hash.
+    supported_tags : list[str]
+        List of tags that are to be searched for.
+    Returns
+    -------
+    tags : dict[str, bool]
+        Dictionary of tags found, with supported tags as keys and the value denoting wether they were found.
+    commit_message : str
+        New commit message cleaned of the tag in brackets, but with the tag in front instead.
+    """
+    # Get commit from its sha
+    commit = repo.get_commit(sha=commit_hash)
+    message = commit.raw_data["commit"]["message"]
+
+    # Extract commit tag if there is one
+    tag = re.search(r'\[(.*?)\]', message)
+    if tag:
+        tag = tag.group(1)
+        LOGGER.info("tag: %s", tag)
+
+        if tag.lower() in supported_tags:
+            # Remove tag from message, and add it in front
+            commit_message = message.replace(f'[{tag}]', "")
+            # Clean excess spaces
+            commit_message = re.sub(r'\s+', " ", commit_message).strip()
+            # Add tag in front of commit message
+            commit_message = "%s: %s" % (tag.upper(), commit_message)
+
+            # Return True for the tag that was found
+            return {possible_tag: tag.lower() == possible_tag for possible_tag in supported_tags}, commit_message
+        else:
+            # Quit if the tag is not in the list of supported ones
+            LOGGER.info(
+                "no supported tag detected (was '%s', supported are %s" % (tag, supported_tags)
+            )
+            return {possible_tag: False for possible_tag in supported_tags}, None
+    else:
+        # Quit if there is not tag
+        LOGGER.info("no tag detected")
+        return {possible_tag: False for possible_tag in supported_tags}, None
+
+def was_last_branch_commit_recent(repo, branch_name, time_treshold=timedelta(hours=24)):
+    """
+    Check if the last commit of a branch is recent.
+    Parameters
+    ----------
+    repo : github.Repository.Repository
+        The repository.
+    branch_name : str
+        The branch name.
+    time_treshold : datetime.timedelta
+        The time threshold under which the last commit will be considered recent.
+    Returns
+    -------
+    bool
+        True if the last commit is recent, False otherwise.
+    """
+    # Get info of latest commit for given branch
+    branch = repo.get_branch(branch_name)
+    date_string = branch.commit.raw_data["commit"]["author"]["date"]
+    last_commit_time = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%SZ")
+    
+    # Trigger release if last commit time was less than some time ago
+    if last_commit_time > datetime.now() - time_treshold:
+        LOGGER.info(
+            "since is within specified time, nightly release will follow")
+        return True
+    return False
 
 def create_api_sessions(github_token):
     """Create API sessions for GitHub.
@@ -62,15 +179,6 @@ def clone_repo(clone_url, clone_path, branch, auth_token):
     pygit2_repo.checkout(pygit2_ref)
     return pygit2_repo, pygit2_ref
 
-
-# class BumpType(enum.Enum):
-#     major = 1
-#     minor = 2
-#     patch = 3
-#     pre = 4
-#     build = 5
-
-
 def get_var_values(var_retrieve, root=''):
     ret = {}
     for var, file, regex in var_retrieve:
@@ -101,7 +209,3 @@ def update_var_values(var_retrieved, version_tag, git_rev=None, root=''):
             v = version_tag
         ret[k] = v
     return ret
-
-
-# TODO
-# Remove repository_exists, replace by load_repository(github_client, repo_name) and throw/log error if not exists
