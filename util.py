@@ -1,12 +1,9 @@
-import time
 import os
 import requests
 import urllib3.util.retry
 import pygit2
 from github import Github
-import enum
-import re
-import os
+
 
 def create_api_sessions(github_token):
     """Create API sessions for GitHub.
@@ -88,8 +85,9 @@ def get_var_values(var_retrieve, root=''):
     return ret
 
 
-def update_var_values(var_retrieved, version_tag, git_rev, root=''):
+def update_var_values(var_retrieved, version_tag, git_rev=None, root=''):
     ret = {}
+    git_rev = version_tag if git_rev is None else git_rev
     for k, v in var_retrieved.items():
         if k == 'build':
             if var_retrieved['version'] == version_tag:
@@ -105,12 +103,5 @@ def update_var_values(var_retrieved, version_tag, git_rev, root=''):
     return ret
 
 
-from github.GithubException import UnknownObjectException
-
-
-def repository_exists(github_client, repository):
-    try:
-        github_client.get_repo(repository)
-    except UnknownObjectException:
-        return False
-    return True
+# TODO
+# Remove repository_exists, replace by load_repository(github_client, repo_name) and throw/log error if not exists
