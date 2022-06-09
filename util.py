@@ -94,7 +94,7 @@ def get_commit_tags(repo, commit_hash, supported_tags=["ci", "rerender"]):
         LOGGER.info("no tag detected")
         return {possible_tag: False for possible_tag in supported_tags}, None
 
-def was_last_branch_commit_recent(repo, branch_name, time_treshold=timedelta(hours=24)):
+def was_branch_last_commit_recent(repo, branch_name, time_treshold=timedelta(hours=24)):
     """
     Check if the last commit of a branch is recent.
     Parameters
