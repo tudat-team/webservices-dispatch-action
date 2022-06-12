@@ -1,13 +1,13 @@
 import os
 import json
 import logging
-import pprint
 from github import Github
 import re
 from util import *
 import bumpversion.cli
 from datetime import datetime, timedelta
 import subprocess
+import shutil
 
 
 # Create logger with logging level set to all
@@ -96,57 +96,20 @@ def main():
         # Create path for feedstock and project repos locally
         FEEDSTOCK_DIR, PROJECT_DIR = [os.path.join(os.environ["GITHUB_WORKSPACE"], name) for name in ["feedstock", "project"]]
 
-        # Clone the feedstock and project repos
+        # Clone the feedstock and project repos at their correct branch
         LOGGER.info("cloning feedstock repository")
         clone_repo(feedstock_repo.clone_url, FEEDSTOCK_DIR, branch_name, os.environ['GH_TOKEN'])
         LOGGER.info('cloning project repository')
         clone_repo(project_repo.clone_url, PROJECT_DIR, branch_name, os.environ['GH_TOKEN'])
 
-        # Checkout correct repo branch
-        for dir in [FEEDSTOCK_DIR, PROJECT_DIR]:
-            subprocess.run(["git", "checkout", branch_name], cwd=dir)
-
-        # Get version from version file in project repo
-        with open(os.path.join(PROJECT_DIR, "version"), 'r') as fp:
-            version = fp.read().rstrip("\n")
-
-        # Declare regex to get last version {% set version = "@VERSION@" %}
-        VERSION_REGEX = re.compile(r'{%\s*set\s*version\s*=\s*"([^"]*)"\s*%}')
-        BUILD_REGEX = re.compile(r'{%\s*set\s*build\s*=\s*"([^"]*)"\s*%}')
-        GIT_REV_REGEX = re.compile(r'{%\s*set\s*git_rev\s*=\s*"([^"]*)"\s*%}')
-        VERSION_PEP440 = re.compile(r'(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(\.(?P<release>[a-z]+)(?P<dev>\d+))?')
-        TARGETS_REGEX = re.compile(r"-\s+\[(?P<channel>[\w,-].+)\, \s+(?P<subchannel>[\w,-]+)]")
-        TARGETS2_REGEX = re.compile(r"(?<=channel_targets:\n\s\s)-\s+(?P<targets>[\s,\w,-]+)")
-
-        # Match version from file to pep440 and retrieve groups
-        match = VERSION_PEP440.match(version)
-        if match:
-            major = match.group("major")
-            minor = match.group("minor")
-            patch = match.group("patch")
-            release = match.group("release")
-            dev = match.group("dev")
-            if release:
-                version = f"{major}.{minor}.{patch}.{release}{dev}"
-            else:
-                version = f"{major}.{minor}.{patch}"
-            LOGGER.info("version: %s", version)
-            LOGGER.info("major: %s", major)
-            LOGGER.info("minor: %s", minor)
-            LOGGER.info("patch: %s", patch)
-            LOGGER.info("release: %s", release)
-            LOGGER.info("dev: %s", dev)
-        else:
-            LOGGER.error(
-                "repository_dispatch event: could not parse version")
+        # Get project version number
+        version = get_project_version(PROJECT_DIR)
+        if version is None:
             return
-
+        
         # Retrieve version, build, and rev values from previous feedstock metadata
-        VAR_RETRIEVE = [
-            ("version", "recipe/meta.yaml", VERSION_REGEX),
-            ("build", "recipe/meta.yaml", BUILD_REGEX),
-            ("git_rev", "recipe/meta.yaml", GIT_REV_REGEX),
-        ]
+        version_types = ["version", "build", "git_rev"]
+        VAR_RETRIEVE = [(v_type, "recipe/meta.yaml", re.compile('{%\s*set\s*' + v_type + '\s*=\s*"([^"]*)"\s*%}')) for v_type in version_types]
         old_var_vals = get_var_values(VAR_RETRIEVE, FEEDSTOCK_DIR)
         LOGGER.info("old_var_vals: %s", pprint.pformat(old_var_vals))
         LOGGER.info("version: %s", version)
@@ -156,7 +119,7 @@ def main():
         # Trigger release if branch is develop, or if the environment is test
         if branch_name == "develop" or "TEST_DICT" in os.environ:
 
-            if release == "dev":
+            if release == "dev" or "TEST_DICT" in os.environ:
                 # If the version is in dev, bump the dev version number
                 LOGGER.info(
                     "repository_dispatch event: bumping dev version")
@@ -191,20 +154,26 @@ def main():
         LOGGER.info("bumping version with command: %s", bump_command)
 
         # Get new version from version file in project repo open file
-        with open(os.path.join(PROJECT_DIR, "version"), "r") as fp:
-            new_version = fp.read().rstrip("\n")
+        new_version = get_project_version(PROJECT_DIR)
+        if new_version is None:
+            return
+
+        # TARGETS_REGEX = re.compile(r"-\s+\[(?P<channel>[\w,-].+)\, \s+(?P<subchannel>[\w,-]+)]")
+        # TARGETS2_REGEX = re.compile(r"(?<=channel_targets:\n\s\s)-\s+(?P<targets>[\s,\w,-]+)")
 
         # Update version number in feedstock metadata
         new_var_vals = update_var_values(old_var_vals, new_version)
-        VAR_SUBSTITUTE = [
-            # These note where/how to find the version numbers
-            ("recipe/meta.yaml", VERSION_REGEX, r'{% set version = "{}" %}', new_var_vals["version"]),
-            ("recipe/meta.yaml", BUILD_REGEX, r'{% set build = "{}" %}', new_var_vals["build"]),
-            ("recipe/meta.yaml", GIT_REV_REGEX, r'{% set git_rev = "v{}" %}', new_var_vals["git_rev"]),
-            # Make sure that dev branch is used in conda configs
-            # ("recipe/conda_build_config.yaml", TARGETS2_REGEX, r"- tudat-team {}", remap(branch_name)),
-            # ("conda-forge.yml", TARGETS_REGEX, r'- [tudat-team, {}]', remap(branch_name))
-        ]
+        VAR_SUBSTITUTE = [(
+            "recipe/meta.yaml",
+            re.compile('{%\s*set\s*' + v_type + '\s*=\s*"([^"]*)"\s*%}'),
+            '{% set ' + v_type + ' = "{}" %}',
+            new_var_vals[v_type]
+        ) for v_type in version_types]
+
+        # # Make sure that dev branch is used in conda configs
+        # VAR_SUBSTITUTE.append(("recipe/conda_build_config.yaml", TARGETS2_REGEX, r"- tudat-team {}", remap(branch_name)))
+        # VAR_SUBSTITUTE.append(("conda-forge.yml", TARGETS_REGEX, r'- [tudat-team, {}]', remap(branch_name)))
+
         # Substitute all vars accordingly
         for file, regex, subst, val in VAR_SUBSTITUTE:
             path = os.path.join(FEEDSTOCK_DIR, file)
@@ -228,18 +197,7 @@ def main():
         # Push changes to GitHub
         for repo, dir in [(s_repository_feedstock, FEEDSTOCK_DIR),
                             (s_repository, PROJECT_DIR)]:
-            # Add all files
-            subprocess.run(["git", "add", "."], cwd=dir)
-
-            # Commit with proper commit message
-            subprocess.run(["git", "commit", "-m", commit_message], cwd=dir)
-
-            # Get url to push to
-            repo_auth_url = "https://%s@github.com/%s.git" % (os.environ["GH_TOKEN"], repo)
-
-            # Push changes and tags
-            subprocess.run(["git", "push", "--all", "-f", repo_auth_url], cwd=dir)
-            subprocess.run(["git", "push", repo_auth_url, branch_name, "--tags"], cwd=dir)
+            push_all_to_github(repo, branch_name, dir, commit_message)
 
 def remap(key):
     map = {
@@ -250,73 +208,78 @@ def remap(key):
         return map[key]
     return key
 
+def simulate_repository_dispatch():
+    """
+    Simulate a repository dispatch event as if main() was running in production.
+    """
+    # Use export GH_TOKEN=<your token> to test with your own token.
+    # Aslo see https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
+    if "GH_TOKEN" not in os.environ:
+        raise ValueError("GH_TOKEN not set")
+
+    gh = Github(os.environ["GH_TOKEN"])
+    target_repo = "tudat-team/tudatpy"
+    target_branch = "test_automation"
+    
+    # Get last commit from given branch
+    repo = gh.get_repo(target_repo)
+    branch = repo.get_branch(target_branch)
+    # Convert commit time to datetime
+    since = datetime.strptime(branch.commit.raw_data["commit"]["author"]["date"], "%Y-%m-%dT%H:%M:%SZ")
+    # Check if the commit was less than 24hrs ago
+    less_than_24_hrs = since < datetime.now() - timedelta(hours=24)
+    
+    # Print last commit infos
+    print("Last commit was on branch '%s' by '%s' on %s (%s than 24hrs ago)" % (
+        branch.name,
+        branch.commit.raw_data["commit"]["author"]["name"],
+        since,
+        "more" if less_than_24_hrs else "less")
+    )
+    print("Commit message: %s" % branch.commit.raw_data["commit"]["message"])
+    print("Commit url: https://github.com/%s/commit/%s" % (repo.full_name, branch.commit.sha))
+    print()
+    
+    # Set environment variables to test automation on last commit
+    os.environ["GITHUB_WORKSPACE"] = "./tmp"
+    os.environ["TEST_DICT"] = json.dumps(dict(
+        client_payload=dict(
+            ref_name=target_branch,
+            repository=target_repo,
+            sha=branch.commit.sha,
+            ref="refs/heads/%s"%target_branch,
+            ref_type="branch",
+            actor=branch.commit.raw_data["commit"]["author"]["name"],
+            event="push")
+    ))
+    os.environ["GITHUB_EVENT_NAME"] = "repository_dispatch"
+
+    # Print environment variables
+    print("The following environment variables are set:")
+    print(" * GITHUB_WORKSPACE: %s" % os.environ["GITHUB_WORKSPACE"])
+    print(" * TEST_DICT: %s" % os.environ["TEST_DICT"])
+    print(" * GITHUB_EVENT_NAME: %s" % os.environ["GITHUB_EVENT_NAME"])
+    print()
+
+    # Run automation
+    main()
+
+    # Cleanup
+    try:
+        shutil.rmtree(os.environ["GITHUB_WORKSPACE"])
+    except FileNotFoundError:
+        pass
+
 if __name__ == "__main__":
     # Set to true for testing (emulate repository dispatch event)
     test_env = True
-
-    if not test_env:
-        main()
-    else:
-        import shutil
-        # Use export GH_TOKEN=<your token> to test with your own token.
-        # Aslo see https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
-        if "GH_TOKEN" not in os.environ:
-            raise ValueError("GH_TOKEN not set")
-
-        gh = Github(os.environ["GH_TOKEN"])
-        target_repo = "tudat-team/tudatpy"
-        target_branch = "test_automation"
-        
-        # Get last commit from given branch
-        repo = gh.get_repo(target_repo)
-        branch = repo.get_branch(target_branch)
-        # Convert commit time to datetime
-        since = datetime.strptime(branch.commit.raw_data["commit"]["author"]["date"], "%Y-%m-%dT%H:%M:%SZ")
-        # Check if the commit was less than 24hrs ago
-        less_than_24_hrs = since < datetime.now() - timedelta(hours=24)
-        
-        # Print last commit infos
-        print("Last commit was on branch '%s' by '%s' on %s (%s than 24hrs ago)" % (
-            branch.name,
-            branch.commit.raw_data["commit"]["author"]["name"],
-            since,
-            "more" if less_than_24_hrs else "less")
-        )
-        print("Commit message: %s" % branch.commit.raw_data["commit"]["message"])
-        print("Commit url: https://github.com/%s/commit/%s" % (repo.full_name, branch.commit.sha))
-        print()
-
+    if test_env:
         try:
-            # Set environment variables to test automation on last commit
-            os.environ["GITHUB_WORKSPACE"] = "./tmp"
-            os.environ["TEST_DICT"] = json.dumps(dict(
-                client_payload=dict(
-                    ref_name=target_branch,
-                    repository=target_repo,
-                    sha=branch.commit.sha,
-                    ref="refs/heads/%s"%target_branch,
-                    ref_type="branch",
-                    actor=branch.commit.raw_data["commit"]["author"]["name"],
-                    event="push")
-            ))
-            os.environ["GITHUB_EVENT_NAME"] = "repository_dispatch"
-
-            # Print environment variables
-            print("The following environment variables are set:")
-            print(" * GITHUB_WORKSPACE: %s" % os.environ["GITHUB_WORKSPACE"])
-            print(" * TEST_DICT: %s" % os.environ["TEST_DICT"])
-            print(" * GITHUB_EVENT_NAME: %s" % os.environ["GITHUB_EVENT_NAME"])
-            print()
-
-            # Run automation
-            main()
-
-            # Cleanup
-            try:
-                shutil.rmtree(os.environ["GITHUB_WORKSPACE"])
-            except FileNotFoundError:
-                pass
-        
+            simulate_repository_dispatch()
         except ValueError as e:
-            print(e)
+            print("Warning:", e)
+            print("This directory will be removed, and the script run again.")
             shutil.rmtree(os.environ["GITHUB_WORKSPACE"])
+            simulate_repository_dispatch()
+    else:
+        main()

@@ -2,7 +2,9 @@ import os
 import requests
 import urllib3.util.retry
 import logging
+import subprocess
 import re
+import pprint
 from datetime import datetime, timedelta
 import pygit2
 from github import Github
@@ -44,6 +46,48 @@ def get_project_and_feedstock_repos(github_client, repo_name):
         return None, None, None
 
     return project_repo, feedstock_repo, feedstock_repo_name
+
+def get_project_version(repo_dir, VERSION_PEP440=re.compile(r'(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(\.(?P<release>[a-z]+)(?P<dev>\d+))?')):
+    """
+    Get the project version from the version file in a given repository.
+    Parameters
+    ----------
+    repo_dir : str
+        The path to the repo directory.
+    VERSION_PEP440 : re.compile
+        The regex to match the version.
+    Returns
+    -------
+    str
+        The project version.
+    """
+    # Get version from version file in project repo
+    with open(os.path.join(repo_dir, "version"), 'r') as fp:
+        version = fp.read().rstrip("\n")
+
+    # Match version from file to pep440 and retrieve groups
+    match = VERSION_PEP440.match(version)
+    if match:
+        major = match.group("major")
+        minor = match.group("minor")
+        patch = match.group("patch")
+        release = match.group("release")
+        dev = match.group("dev")
+        if release:
+            version = f"{major}.{minor}.{patch}.{release}{dev}"
+        else:
+            version = f"{major}.{minor}.{patch}"
+        LOGGER.info("version: %s", version)
+        LOGGER.info("major: %s", major)
+        LOGGER.info("minor: %s", minor)
+        LOGGER.info("patch: %s", patch)
+        LOGGER.info("release: %s", release)
+        LOGGER.info("dev: %s", dev)
+        return version
+    else:
+        LOGGER.error(
+            "repository_dispatch event: could not parse version")
+        return None
 
 def get_commit_tags(repo, commit_hash, supported_tags=["ci", "rerender"]):
     """
@@ -122,6 +166,33 @@ def was_branch_last_commit_recent(repo, branch_name, time_treshold=timedelta(hou
         return True
     return False
 
+def push_all_to_github(repo, branch_name, directory, commit_message):
+    """
+    Push all files in a directory to a github repository.
+    Parameters
+    ----------
+    repo : github.Repository.Repository
+        The repository.
+    branch_name : str
+        The branch name.
+    directory : str
+        The directory to push.
+    commit_message : str
+        The commit message.
+    """
+    # Add all files
+    subprocess.run(["git", "add", "."], cwd=directory)
+
+    # Commit with proper commit message
+    subprocess.run(["git", "commit", "-m", commit_message], cwd=directory)
+
+    # Get url to push to
+    repo_auth_url = "https://%s@github.com/%s.git" % (os.environ["GH_TOKEN"], repo)
+
+    # Push changes and tags
+    subprocess.run(["git", "push", "--all", "-f", repo_auth_url], cwd=directory)
+    subprocess.run(["git", "push", repo_auth_url, branch_name, "--tags"], cwd=directory)
+
 def create_api_sessions(github_token):
     """Create API sessions for GitHub.
     Parameters
@@ -177,6 +248,8 @@ def clone_repo(clone_url, clone_path, branch, auth_token):
     pygit2_branch = pygit2_repo.branches['origin/' + branch]
     pygit2_ref = pygit2_repo.lookup_reference(pygit2_branch.name)
     pygit2_repo.checkout(pygit2_ref)
+    # Checkout correct branch
+    subprocess.run(["git", "checkout", branch], cwd=clone_path)
     return pygit2_repo, pygit2_ref
 
 def get_var_values(var_retrieve, root=''):
@@ -185,11 +258,8 @@ def get_var_values(var_retrieve, root=''):
         with open(os.path.join(root, file), 'r') as f:
             s = f.read()
             m = regex.search(s)
-            print(regex, var)
             v = m.group(1)
             ret[var] = v
-
-            # LOGGING.debug('%s: %s', var, v)
     return ret
 
 
