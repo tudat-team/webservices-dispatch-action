@@ -262,7 +262,6 @@ def get_var_values(var_retrieve, root=''):
             ret[var] = v
     return ret
 
-
 def update_var_values(var_retrieved, version_tag, git_rev=None, root=''):
     ret = {}
     git_rev = version_tag if git_rev is None else git_rev
@@ -279,3 +278,16 @@ def update_var_values(var_retrieved, version_tag, git_rev=None, root=''):
             v = version_tag
         ret[k] = v
     return ret
+
+def substitute_vars_in_file(vars_substitute, directory):
+    # Substitute variables in files
+    for file, regex, subst, val in vars_substitute:
+        path = os.path.join(directory, file)
+        # Read file
+        with open(path, "r") as f:
+            s = f.read()
+            # Substitute
+            s = regex.sub(subst.replace("{}", str(val)), s)
+        # Write file    
+        with open(path, "w") as f:
+            f.write(s)

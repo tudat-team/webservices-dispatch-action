@@ -59,7 +59,7 @@ def main():
     # If the even is a push, analyze it to search for [CI] tag
     if event_type == "push":
         # Get possible tags in commit message, as well as new commit message for push after rerender or release
-        tags_found, commit_message = get_commit_tags(project_repo, payload["sha"])
+        tags_found, commit_message = get_commit_tags(project_repo, payload["sha"], supported_tags=["ci", "rerender"])
         rerender = tags_found["rerender"] or tags_found["ci"]
         release = tags_found["ci"]
         # Quit if no tags were found
@@ -77,28 +77,68 @@ def main():
     else:
         return
 
+    # Create path for feedstock and project repos locally
+    FEEDSTOCK_DIR, PROJECT_DIR = [os.path.join(os.environ["GITHUB_WORKSPACE"], name) for name in ["tudatpy-feedstock", "project"]]
+
     # Rerender the feedstock
     if rerender:
-        # right now we don't rerender here (。_。) !!!!!
-        # see https://github.com/tudat-team/.github/actions/workflows/autorerender.yml
-        # LOGGER.info('cloning feedstock repository')
-        # feedstock_repo, _ = clone_repo(
-        #     repo_feedstock.clone_url,
-        #     FEEDSTOCK_DIR,
-        #     target_branch,
-        #     os.environ['GH_TOKEN'])
-        #
-        # subprocess.run(["git", "checkout", target_branch], cwd=dir)
-        pass
+        LOGGER.info("starting rerender")
+
+        # Clone the feedstock repo at its correct branch
+        LOGGER.info("cloning feedstock repository")
+        clone_repo(feedstock_repo.clone_url, FEEDSTOCK_DIR, branch_name, os.environ['GH_TOKEN'])
+        
+        # Make sure conda exists
+        os.system("conda --version > /dev/null")
+        if os.system("conda --version > /dev/null") != 0:
+            LOGGER.error("conda not found")
+            return
+
+        # Make sure conda is up to date
+        LOGGER.info("updating conda")
+        os.system("conda update -n base -c defaults conda -y")
+
+        # Make sure conda-smithy is installed and up-to-date
+        LOGGER.info("updating conda-smithy")
+        os.system("conda install -n base -c conda-forge conda-smithy -y")
+
+        # # Make sure that dev branch is used in conda configs
+        # TARGETS_REGEX = re.compile(r"-\s+\[(?P<channel>[\w,-].+)\, \s+(?P<subchannel>[\w,-]+)]")
+        # TARGETS2_REGEX = re.compile(r"(?<=channel_targets:\n\s\s)-\s+(?P<targets>[\s,\w,-]+)")
+        # VAR_SUBSTITUTE = []
+        # VAR_SUBSTITUTE.append(("recipe/conda_build_config.yaml", TARGETS2_REGEX, r"- tudat-team {}", remap(branch_name)))
+        # VAR_SUBSTITUTE.append(("conda-forge.yml", TARGETS_REGEX, r'- [tudat-team, {}]', remap(branch_name)))
+        # substitute_vars_in_file(VAR_SUBSTITUTE, FEEDSTOCK_DIR)
+
+        # Run conda-smithy rerender
+        LOGGER.info("running conda smithy rerender")
+        r = subprocess.Popen(["conda", "smithy", "rerender"], cwd=FEEDSTOCK_DIR, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # Get the new commit message
+        rerender_output = r.communicate()[-1].decode("utf-8")
+        rerender_commit_message = None
+        for line in rerender_output.split("\n"):
+            if line.strip().startswith('git commit -m "'):
+                rerender_commit_message = line.strip().split('"')[1]
+                break
+        if rerender_commit_message is None:
+            LOGGER.error("could not find commit message in rerender output. Feedstock most likely already up-to-date.")
+            LOGGER.info("conda smithy rerender output was:\n%s", rerender_output)
+            return
+        else:
+            LOGGER.info("conda-smithy rerender commit message: '%s'", rerender_commit_message)
+            # Commit changes
+            subprocess.run(["git", "commit", "-m", rerender_commit_message], cwd=FEEDSTOCK_DIR)
 
     # Release a conda package
     if release:
-        # Create path for feedstock and project repos locally
-        FEEDSTOCK_DIR, PROJECT_DIR = [os.path.join(os.environ["GITHUB_WORKSPACE"], name) for name in ["feedstock", "project"]]
+        LOGGER.info("starting release")
 
         # Clone the feedstock and project repos at their correct branch
-        LOGGER.info("cloning feedstock repository")
-        clone_repo(feedstock_repo.clone_url, FEEDSTOCK_DIR, branch_name, os.environ['GH_TOKEN'])
+        if not rerender:
+            # If rerender was triggered, the feedstock repo is already cloned
+            LOGGER.info("cloning feedstock repository")
+            clone_repo(feedstock_repo.clone_url, FEEDSTOCK_DIR, branch_name, os.environ['GH_TOKEN'])
         LOGGER.info('cloning project repository')
         clone_repo(project_repo.clone_url, PROJECT_DIR, branch_name, os.environ['GH_TOKEN'])
 
@@ -158,9 +198,6 @@ def main():
         if new_version is None:
             return
 
-        # TARGETS_REGEX = re.compile(r"-\s+\[(?P<channel>[\w,-].+)\, \s+(?P<subchannel>[\w,-]+)]")
-        # TARGETS2_REGEX = re.compile(r"(?<=channel_targets:\n\s\s)-\s+(?P<targets>[\s,\w,-]+)")
-
         # Update version number in feedstock metadata
         new_var_vals = update_var_values(old_var_vals, new_version)
         VAR_SUBSTITUTE = [(
@@ -170,34 +207,25 @@ def main():
             new_var_vals[v_type]
         ) for v_type in version_types]
 
-        # # Make sure that dev branch is used in conda configs
-        # VAR_SUBSTITUTE.append(("recipe/conda_build_config.yaml", TARGETS2_REGEX, r"- tudat-team {}", remap(branch_name)))
-        # VAR_SUBSTITUTE.append(("conda-forge.yml", TARGETS_REGEX, r'- [tudat-team, {}]', remap(branch_name)))
-
         # Substitute all vars accordingly
-        for file, regex, subst, val in VAR_SUBSTITUTE:
-            path = os.path.join(FEEDSTOCK_DIR, file)
-            # Read file
-            with open(path, "r") as f:
-                s = f.read()
-                # Substitute
-                s = regex.sub(subst.replace("{}", str(val)), s)
-            # Write file    
-            with open(path, "w") as f:
-                f.write(s)
+        substitute_vars_in_file(VAR_SUBSTITUTE, FEEDSTOCK_DIR)
 
-        # If in testing env, ask confirmation before pushing
-        if "TEST_DICT" in os.environ:
-            print("Last thing to do is to push to GitHub...")
-            go_ahead = input("Do you want to still do so (even from this test environment)? (y/[n]): ")
-            if go_ahead.lower() != "y":
-                print("Exiting...")
-                return
+    # If in testing env, ask confirmation before pushing
+    if "TEST_DICT" in os.environ:
+        print("Last thing to do is to push to GitHub...")
+        go_ahead = input("Do you want to still do so (even from this test environment)? (y/[n]): ")
+        if go_ahead.lower() != "y":
+            print("Exiting...")
+            return
 
-        # Push changes to GitHub
-        for repo, dir in [(s_repository_feedstock, FEEDSTOCK_DIR),
-                            (s_repository, PROJECT_DIR)]:
-            push_all_to_github(repo, branch_name, dir, commit_message)
+    # Push changes to GitHub
+    to_push = []
+    if rerender and rerender_commit_message is not None:
+        to_push.append((s_repository_feedstock, FEEDSTOCK_DIR))
+    if release:
+        to_push.append((s_repository, PROJECT_DIR))
+    for repo, dir in to_push:
+        push_all_to_github(repo, branch_name, dir, commit_message)
 
 def remap(key):
     map = {
@@ -272,7 +300,7 @@ def simulate_repository_dispatch():
 
 if __name__ == "__main__":
     # Set to true for testing (emulate repository dispatch event)
-    test_env = True
+    test_env = False
     if test_env:
         try:
             simulate_repository_dispatch()
