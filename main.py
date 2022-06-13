@@ -17,8 +17,8 @@ logging.basicConfig(level=logging.INFO)
 
 def main():
     # Two events:
-    # 1. Push -> look for tags in commit message and rerender and/or release if found
-    # 2. Nightly -> rerender and release if last changes were more than 24hrs ago
+    # 1. Push to tudat/tudatpy -> look for [CI]/[Rerender] tags in commit message and rerender and/or release if found
+    # 2. Nightly -> rerender and release if last changes were less than 24hrs ago
 
     # Load event data from test dictionary or from GitHub even path environment variable
     if "TEST_DICT" in os.environ:
