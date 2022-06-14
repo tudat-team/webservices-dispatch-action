@@ -18,6 +18,17 @@ RUN pip install PyGithub \
   cffi \
   bumpversion
 
+# Install conda
+RUN wget \
+  https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+  && mkdir /root/.conda \
+  && bash Miniconda3-latest-Linux-x86_64.sh -b \
+  && rm -f Miniconda3-latest-Linux-x86_64.sh 
+RUN conda --version
+
+# Install conda-smithy environment
+RUN conda install -n root -c conda-forge conda-smithy
+
 #--target=/app requests PyGithub pygit2 cffi
 
 # A distroless container image with Python and some basics like SSL certificates
