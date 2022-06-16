@@ -22,8 +22,7 @@ RUN pip install PyGithub \
 # Install conda
 ENV CONDA_DIR /opt/conda
 RUN wget \
-  https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-  && mkdir /opt/conda \
+  https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -nv \
   && bash Miniconda3-latest-Linux-x86_64.sh -b -p /opt/conda \
   && rm -f Miniconda3-latest-Linux-x86_64.sh
 ENV PATH=$CONDA_DIR/bin:$PATH
