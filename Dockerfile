@@ -26,7 +26,7 @@ RUN conda --version
 RUN conda install -n root -c conda-forge conda-smithy -y
 
 # We are installing a dependency here directly into our conda environment
-RUN python -m pip install -y \
+RUN python -m pip install \
   PyGithub \
   pygit2 \
   cffi \
