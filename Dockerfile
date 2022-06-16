@@ -20,15 +20,17 @@ RUN pip install PyGithub \
   bumpversion
 
 # Install conda
+ENV CONDA_DIR /opt/conda
 RUN wget \
   https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-  && mkdir /root/.conda \
-  && bash Miniconda3-latest-Linux-x86_64.sh -b \
-  && rm -f Miniconda3-latest-Linux-x86_64.sh 
+  && mkdir /opt/conda \
+  && bash Miniconda3-latest-Linux-x86_64.sh -b -p /opt/conda \
+  && rm -f Miniconda3-latest-Linux-x86_64.sh
+ENV PATH=$CONDA_DIR/bin:$PATH
 RUN conda --version
 
 # Install conda-smithy environment
-RUN conda install -n root -c conda-forge conda-smithy
+RUN conda install -n root -c conda-forge conda-smithy -y
 
 #--target=/app requests PyGithub pygit2 cffi
 
