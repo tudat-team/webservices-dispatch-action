@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
   libssl-dev  \
   libffi-dev  \
   python3-setuptools \
+  wget \
   git
 
 # We are installing a dependency here directly into our app source dir
