@@ -21,14 +21,18 @@ RUN wget \
 ENV PATH=$CONDA_DIR/bin:$PATH
 RUN conda --version
 
+# Add conda-forge channel
+RUN conda config --add channels conda-forge
+
 # Install conda-smithy environment
 RUN conda install -n root -c conda-forge conda-smithy -y
 
 # We are installing a dependency here directly into our app source dir
-RUN conda install PyGithub \
+RUN conda install -y \
+  PyGithub \
   pygit2 \
   cffi \
-  bumpversion -y
+  bumpversion
 
 # List all packages installed for debugging log
 RUN conda list
