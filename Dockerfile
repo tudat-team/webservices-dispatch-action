@@ -4,7 +4,6 @@ WORKDIR /app
 
 # update basic python packages
 RUN apt-get update && apt-get install -y \
-  python3-pip  \
   python3-dev  \
   build-essential  \
   libssl-dev  \
@@ -12,12 +11,6 @@ RUN apt-get update && apt-get install -y \
   python3-setuptools \
   wget \
   git
-
-# We are installing a dependency here directly into our app source dir
-RUN pip install PyGithub \
-  pygit2 \
-  cffi \
-  bumpversion
 
 # Install conda
 ENV CONDA_DIR /opt/conda
@@ -30,6 +23,15 @@ RUN conda --version
 
 # Install conda-smithy environment
 RUN conda install -n root -c conda-forge conda-smithy -y
+
+# We are installing a dependency here directly into our app source dir
+RUN conda install PyGithub \
+  pygit2 \
+  cffi \
+  bumpversion -y
+
+# List all packages installed for debugging log
+RUN conda list
 
 #--target=/app requests PyGithub pygit2 cffi
 
