@@ -159,7 +159,7 @@ def main():
         # Trigger release if branch is develop, or if the environment is test
         if branch_name == "develop" or "TEST_DICT" in os.environ:
 
-            if release == "dev" or "TEST_DICT" in os.environ:
+            if remap(branch_name) == "dev" or "TEST_DICT" in os.environ:
                 # If the version is in dev, bump the dev version number
                 LOGGER.info(
                     "repository_dispatch event: bumping dev version")
