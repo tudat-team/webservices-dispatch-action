@@ -78,7 +78,7 @@ def main():
         return
 
     # Create path for feedstock and project repos locally
-    FEEDSTOCK_DIR, PROJECT_DIR = [os.path.join(os.environ["GITHUB_WORKSPACE"], name) for name in ["tudatpy-feedstock", "project"]]
+    FEEDSTOCK_DIR, PROJECT_DIR = [os.path.join(os.environ["GITHUB_WORKSPACE"], repo_full_name.split("/")[-1]) for repo_full_name in [s_repository_feedstock, s_repository]]
 
     # Rerender the feedstock
     if rerender:
@@ -203,7 +203,7 @@ def main():
         VAR_SUBSTITUTE = [(
             "recipe/meta.yaml",
             re.compile('{%\s*set\s*' + v_type + '\s*=\s*"([^"]*)"\s*%}'),
-            '{% set ' + v_type + ' = "{}" %}',
+            '{% set ' + v_type + ' = "v{}" %}' if v_type == "git_rev" else '{% set ' + v_type + ' = "{}" %}',
             new_var_vals[v_type]
         ) for v_type in version_types]
 
@@ -241,7 +241,7 @@ def simulate_repository_dispatch():
     Simulate a repository dispatch event as if main() was running in production.
     """
     # Use export GH_TOKEN=<your token> to test with your own token.
-    # Aslo see https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
+    # Also see https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
     if "GH_TOKEN" not in os.environ:
         raise ValueError("GH_TOKEN not set")
 
