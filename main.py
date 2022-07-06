@@ -72,6 +72,7 @@ def main():
         rerender = True
         # If last commit was less than 22hrs ago, trigger release
         release = was_branch_last_commit_recent(project_repo, branch_name, time_treshold=timedelta(hours=22))
+        commit_message = "BOT: Changes detected in project, nightly release 🌃"
 
     # Quit if the event is not a push nor a nightly
     else:
