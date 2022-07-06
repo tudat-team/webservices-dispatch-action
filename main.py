@@ -125,7 +125,6 @@ def main():
         if rerender_commit_message is None:
             LOGGER.error("could not find commit message in rerender output. Feedstock most likely already up-to-date.")
             LOGGER.info("conda smithy rerender output was:\n%s", rerender_output)
-            return
         else:
             LOGGER.info("conda-smithy rerender commit message: '%s'", rerender_commit_message)
             # Commit changes
