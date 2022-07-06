@@ -220,10 +220,10 @@ def main():
 
     # Push changes to GitHub
     to_push = []
-    if rerender and rerender_commit_message is not None:
-        to_push.append((s_repository_feedstock, FEEDSTOCK_DIR))
     if release:
         to_push.append((s_repository, PROJECT_DIR))
+    if (rerender and rerender_commit_message is not None) or release:
+        to_push.append((s_repository_feedstock, FEEDSTOCK_DIR))
     for repo, dir in to_push:
         push_all_to_github(repo, branch_name, dir, commit_message)
 
