@@ -245,6 +245,9 @@ def clone_repo(clone_url, clone_path, branch, auth_token):
     callbacks = pygit2.RemoteCallbacks(pygit2.UserPass(auth_method, auth_token))
     pygit2_repo = pygit2.clone_repository(clone_url, clone_path,
                                           callbacks=callbacks)
+    branches_list = list(pygit2_repo.branches)
+    print('All branches:')
+    print(branches_list)
     pygit2_branch = pygit2_repo.branches['origin/' + branch]
     pygit2_ref = pygit2_repo.lookup_reference(pygit2_branch.name)
     pygit2_repo.checkout(pygit2_ref)
